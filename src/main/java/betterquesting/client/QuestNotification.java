@@ -29,9 +29,9 @@ public class QuestNotification {
 
     private static final List<QuestNotice> notices = new ArrayList<>();
 
-    public static void ScheduleNotice(String mainTxt, String subTxt, ItemStack icon, String sound) {
+    public static void ScheduleNotice(String mainTxt, String subTxt, ItemStack icon, String sound, List<String> unlockedQuests) {
         if (BQ_Settings.questNotices) {
-            notices.add(new QuestNotice(mainTxt, subTxt, icon, sound));
+            notices.add(new QuestNotice(mainTxt, subTxt, icon, sound, unlockedQuests));
         }
     }
 
@@ -104,6 +104,29 @@ public class QuestNotification {
             GL11.glColor4f(1F, 1F, 1F, 1F);
         }
         GL11.glPopMatrix();
+
+        if(notice.unlockedQuests.isEmpty())return;
+        GL11.glPushMatrix();
+        {
+            width = event.resolution.getScaledWidth();
+            height = event.resolution.getScaledHeight();
+
+            GL11.glEnable(GL11.GL_BLEND);
+            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            int i = 0;
+            for (String unlockedQuest : notice.unlockedQuests) {
+                i += 10;
+                int txtW = RenderUtils.getStringWidth(unlockedQuest, mc.fontRenderer);
+                mc.fontRenderer.drawString(unlockedQuest, width - txtW, height - i, color, true);
+            }
+            i += 10;
+            String title = QuestTranslation.translate("betterquesting.notice.complete");
+            int txtW = RenderUtils.getStringWidth(title, mc.fontRenderer);
+            mc.fontRenderer.drawString(title, width - txtW, height - i, color, true);
+
+            GL11.glColor4f(1F, 1F, 1F, 1F);
+        }
+        GL11.glPopMatrix();
     }
 
     public static class QuestNotice {
@@ -114,13 +137,15 @@ public class QuestNotification {
         private final String subTxt;
         private final ItemStack icon;
         private final String sound;
+        private final List<String> unlockedQuests;
 
-        public QuestNotice(String mainTxt, String subTxt, ItemStack icon, String sound) {
+        public QuestNotice(String mainTxt, String subTxt, ItemStack icon, String sound, List<String> unlockedQuests) {
             this.startTime = Minecraft.getSystemTime();
             this.mainTxt = mainTxt;
             this.subTxt = subTxt;
             this.icon = icon;
             this.sound = sound;
+            this.unlockedQuests = unlockedQuests;
         }
 
         public float getTime() {

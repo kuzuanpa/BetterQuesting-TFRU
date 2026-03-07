@@ -1,9 +1,13 @@
 package betterquesting.network.handlers;
 
-import java.util.UUID;
+import java.util.*;
 
 import javax.annotation.Nullable;
 
+import betterquesting.api.questing.IQuestLine;
+import betterquesting.questing.QuestLineDatabase;
+import com.google.common.collect.BiMap;
+import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -55,6 +59,7 @@ public class NetNotices {
         String subTxt = message.getString("subText");
         String questIdStr = message.getString("questId");
         String sound = message.getString("sound");
+        List<String> unlockedQuests = new ArrayList<>();
         if ((subTxt == null || subTxt.isEmpty()) && questIdStr != null && !questIdStr.isEmpty()) {
             subTxt = questIdStr;
         }
@@ -69,10 +74,21 @@ public class NetNotices {
                     } else {
                         subTxt = quest.getProperty(NativeProps.NAME);
                     }
+
+                    UUID playerUUID = Minecraft.getMinecraft().thePlayer.getUniqueID();
+                    QuestDatabase.INSTANCE.filterEntries((k, q) -> q.getRequirements().contains(questId) && q.isUnlocked(playerUUID)&& !q.isComplete(playerUUID))
+                            .forEach((id,q)->{
+                                Optional<Map.Entry<UUID, IQuestLine>> map = QuestLineDatabase.INSTANCE.filterEntries((uid, questLine)-> questLine.containsKey(id)).entrySet().stream().findAny();
+                                if(!map.isPresent())return;// If cannot find questline, player shouldn't access to the new unlocked quest, don't show it.
+
+                                if(map.get().getValue().containsKey(questId))return;//no need to show new unlocked quests at same QuestLine
+
+                                unlockedQuests.add(QuestTranslation.translateQuestLineName(map.get())+": "+QuestTranslation.translateQuestName(id,q));
+                            });
                 }
             } catch (IllegalArgumentException e) {}
         }
 
-        QuestNotification.ScheduleNotice(mainTxt, subTxt, stack, sound);
+        QuestNotification.ScheduleNotice(mainTxt, subTxt, stack, sound, unlockedQuests);
     }
 }
