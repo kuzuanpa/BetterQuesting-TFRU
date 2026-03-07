@@ -1,5 +1,6 @@
 package betterquesting.client.gui2;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -48,11 +49,13 @@ import betterquesting.api2.client.gui.panels.content.PanelTextBox;
 import betterquesting.api2.client.gui.panels.lists.CanvasScrolling;
 import betterquesting.api2.client.gui.resources.textures.SimpleNoUVTexture;
 import betterquesting.api2.client.gui.themes.presets.PresetColor;
+import betterquesting.api2.client.gui.themes.presets.PresetIcon;
 import betterquesting.api2.client.gui.themes.presets.PresetLine;
 import betterquesting.api2.client.gui.themes.presets.PresetTexture;
 import betterquesting.api2.storage.DBEntry;
 import betterquesting.api2.utils.QuestTranslation;
-import betterquesting.client.gui2.GuiQuestLines.ScrollPosition;
+import betterquesting.client.util.GuiTextToggles;
+import betterquesting.core.BetterQuesting;
 import betterquesting.network.handlers.NetQuestAction;
 import betterquesting.questing.QuestDatabase;
 
@@ -63,6 +66,8 @@ public class GuiQuest extends GuiScreenCanvas implements IPEventListener, INeeds
      */
     private static final Map<UUID, ScrollPosition> scrollsPositions = new HashMap<>();
     private static final Pattern img = Pattern.compile("\\[img height=([1-9]\\d*)] *(.*?:.*?) *\\[/img]");
+    private static final Pattern DESCRIPTION_FORMATING_REMOVER = Pattern.compile(
+        "§[0-9a-f|k|n|m|o|l|r]|\\[(url|warn|note|quest)]|\\[\\/\1\\]|\\[img.*?\\]|\\[\\/(url|warn|note|quest|img)\\]");
     private ScrollPosition scrollPosition;
 
     public static class ScrollPosition {
@@ -160,7 +165,8 @@ public class GuiQuest extends GuiScreenCanvas implements IPEventListener, INeeds
 
         PanelTextBox panTxt = new PanelTextBox(
             new GuiTransform(GuiAlign.TOP_EDGE, new GuiPadding(0, 16, 0, -32), 0),
-            QuestTranslation.translateQuestName(questID, quest)).setAlignment(1);
+            GuiTextToggles.applyMonochromeIfEnabled(QuestTranslation.translateQuestName(questID, quest)))
+                .setAlignment(1);
         panTxt.setColor(PresetColor.TEXT_HEADER.getColor());
         cvBackground.addPanel(panTxt);
 
@@ -184,22 +190,33 @@ public class GuiQuest extends GuiScreenCanvas implements IPEventListener, INeeds
                     QuestTranslation.translate("gui.back")));
         }
 
+        PanelButton copyButton = new PanelButton(new GuiTransform(GuiAlign.TOP_LEFT, 16, 10, 16, 16, 0), 8, "");
+        copyButton.setIcon(PresetIcon.ICON_COPY.getTexture());
+        cvBackground.addPanel(copyButton);
+
         cvInner = new CanvasEmpty(new GuiTransform(GuiAlign.FULL_BOX, new GuiPadding(16, 32, 16, 24), 0));
         cvBackground.addPanel(cvInner);
 
+        boolean questHasTrades = false;
+        if (BetterQuesting.isVmLoaded) {
+           // questHasTrades = VmAdapter.questHasTrades(questID);
+        }
         if (quest.getRewards()
-            .size() > 0) {
+            .size() > 0 || questHasTrades) {
             refreshDescPanel(true);
 
-            btnClaim = new PanelButton(
-                new GuiTransform(new Vector4f(0F, 1F, 0.5F, 1F), new GuiPadding(0, -16, 8, 0), 0),
-                6,
-                QuestTranslation.translate("betterquesting.btn.claim"));
-            btnClaim.setActive(false);
-            cvInner.addPanel(btnClaim);
+            if (quest.getRewards()
+                .size() > 0) {
+                btnClaim = new PanelButton(
+                    new GuiTransform(new Vector4f(0F, 1F, 0.5F, 1F), new GuiPadding(0, -16, 8, 0), 0),
+                    6,
+                    QuestTranslation.translate("betterquesting.btn.claim"));
+                btnClaim.setActive(false);
+                cvInner.addPanel(btnClaim);
 
-            rectReward = new GuiTransform(new Vector4f(0F, 0.5F, 0.5F, 1F), new GuiPadding(0, 0, 8, 16), 0);
-            rectReward.setParent(cvInner.getTransform());
+                rectReward = new GuiTransform(new Vector4f(0F, 0.5F, 0.5F, 1F), new GuiPadding(0, 0, 8, 16), 0);
+                rectReward.setParent(cvInner.getTransform());
+            }
 
             refreshRewardPanel();
         } else {
@@ -315,19 +332,27 @@ public class GuiQuest extends GuiScreenCanvas implements IPEventListener, INeeds
     private void onButtonPress(PEventButton event) {
         IPanelButton btn = event.getButton();
 
-        if (btn.getButtonID() == 0) // Exit
-        {
-            mc.displayGuiScreen(this.parent);
-        } else if (btn.getButtonID() == 1) // Edit
-        {
-            // mc.displayGuiScreen(new GuiQuestEditor(this, quest));
-            mc.displayGuiScreen(new betterquesting.client.gui2.editors.GuiQuestEditor(this, questID));
-        } else if (btn.getButtonID() == 6) // Reward claim
-        {
-            NetQuestAction.requestClaim(Collections.singletonList(questID));
-        } else if (btn.getButtonID() == 7) // Task detect/submit
-        {
-            NetQuestAction.requestDetect(Collections.singletonList(questID));
+        switch (btn.getButtonID()) {
+            case 0: // Exit
+                mc.displayGuiScreen(this.parent);
+                break;
+            case 1: // Edit
+                mc.displayGuiScreen(new betterquesting.client.gui2.editors.GuiQuestEditor(this, questID));
+                break;
+            case 6: // Reward claim
+                NetQuestAction.requestClaim(Collections.singletonList(questID));
+                break;
+            case 7: // Task detect/submit
+                NetQuestAction.requestDetect(Collections.singletonList(questID));
+                break;
+            case 8: // Copy description
+                String questText = QuestTranslation.translateQuestDescription(questID, quest);
+                Matcher matcher = DESCRIPTION_FORMATING_REMOVER.matcher(questText);
+                String clearedText = matcher.replaceAll("");
+                setClipboardString(clearedText);
+                break;
+            default:
+                break;
         }
     }
 
@@ -388,6 +413,24 @@ public class GuiQuest extends GuiScreenCanvas implements IPEventListener, INeeds
                 yOffset += tempCanvas.getTransform()
                     .getHeight();
             }
+        }
+
+        if (BetterQuesting.isVmLoaded) {
+            //List<UUID> unlockedTrades = new ArrayList<>(VmAdapter.getTrades(questID));
+            //if (!unlockedTrades.isEmpty()) {
+            //    PanelTextBox titleTradeUnlock = new PanelTextBox(
+            //        new GuiTransform(new Vector4f(), 0, yOffset, rectReward.getWidth(), 12, 0),
+            //        QuestTranslation.translate("bq_standard.trade_unlock"));
+            //    titleTradeUnlock.setColor(PresetColor.TEXT_HEADER.getColor())
+            //        .setAlignment(1);
+            //    titleTradeUnlock.setEnabled(true);
+            //    csReward.addPanel(titleTradeUnlock);
+            //    yOffset += 12;
+            //    for (UUID tradeGroup : unlockedTrades) {
+            //        // returns new y offset for next group
+            //        yOffset = VmAdapter.addTradePanel(csReward, rectReward, tradeGroup, yOffset);
+            //    }
+            //}
         }
 
         csReward.setScrollY(scrollPosition.getRewardScrollY());
@@ -541,7 +584,7 @@ public class GuiQuest extends GuiScreenCanvas implements IPEventListener, INeeds
                 csDesc.getTransform()
                     .getWidth(),
                 0),
-            questText,
+            GuiTextToggles.applyMonochromeIfEnabled(questText),
             true,
             true);
         paDesc.setColor(PresetColor.TEXT_MAIN.getColor());// .setFontSize(10);

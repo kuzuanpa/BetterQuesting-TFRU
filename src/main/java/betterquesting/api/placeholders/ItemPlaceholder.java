@@ -27,7 +27,6 @@ public class ItemPlaceholder extends Item {
      */
     @Override
     @SideOnly(Side.CLIENT)
-    @SuppressWarnings("unchecked")
     public void addInformation(ItemStack stack, EntityPlayer player, List tooltip, boolean advanced) {
         if (!stack.hasTagCompound()) {
             tooltip.add("ERROR: Original information missing!");
@@ -48,18 +47,12 @@ public class ItemPlaceholder extends Item {
      */
     @Override
     public void onUpdate(ItemStack stack, World world, Entity entity, int slot, boolean held) {
-        if (!stack.hasTagCompound() || !(entity instanceof EntityPlayer) || world.getTotalWorldTime() % 100 != 0) // Process
-                                                                                                                  // this
-                                                                                                                  // only
-                                                                                                                  // once
-                                                                                                                  // a
-                                                                                                                  // second
-        {
+        // Process this only once every 5 seconds, to reduce lag.
+        if (!stack.hasTagCompound() || !(entity instanceof EntityPlayer)
+            || world.getTotalWorldTime() % 100 != 0) {
             return;
         }
-
         EntityPlayer player = (EntityPlayer) entity;
-
         NBTTagCompound tags = stack.getTagCompound();
         Item i = (Item) Item.itemRegistry.getObject(tags.getString("orig_id"));
         int m = stack.getItemDamage() > 0 ? stack.getItemDamage() : tags.getInteger("orig_meta");

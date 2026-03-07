@@ -374,6 +374,11 @@ public class QuestCommandDefaults extends QuestCommandBase {
         File questLineDir = new File(dataDir, QUEST_LINE_DIR);
         Map<UUID, IQuestLine> questLines = new HashMap<>();
         for (File questLineSubdir : questLineDir.listFiles()) {
+            // Skip unrelated files such as .DS_Store on macOS
+            if (!questLineSubdir.isDirectory()) {
+                continue;
+            }
+
             File questLineFile = new File(questLineSubdir, QUEST_LINE_FILE);
             if (!questLineFile.exists()) {
                 QuestingAPI.getLogger()
@@ -390,6 +395,12 @@ public class QuestCommandDefaults extends QuestCommandBase {
             questLines.put(questLineId, questLine);
 
             for (File questLineEntryFile : questLineSubdir.listFiles()) {
+                // Skip unrelated files such as .DS_Store on macOS
+                if (!questLineEntryFile.getName()
+                    .endsWith(".json")) {
+                    continue;
+                }
+
                 if (questLineEntryFile.getName()
                     .equals(QUEST_LINE_FILE)) {
                     continue;
@@ -459,6 +470,9 @@ public class QuestCommandDefaults extends QuestCommandBase {
             sendChatMessage(sender, "betterquesting.cmd.default.load");
         }
 
+        if (BetterQuesting.isVmLoaded) {
+            //VmAdapter.resetCompletedQuests(null);
+        }
         NetSettingSync.sendSync(null);
         NetQuestSync.quickSync(null, true, true);
         NetChapterSync.sendSync(null, null);
@@ -490,6 +504,10 @@ public class QuestCommandDefaults extends QuestCommandBase {
                 sendChatMessage(sender, "betterquesting.cmd.default.load2", databaseName + ".json");
             } else {
                 sendChatMessage(sender, "betterquesting.cmd.default.load");
+            }
+
+            if (BetterQuesting.isVmLoaded) {
+                //VmAdapter.resetCompletedQuests(null);
             }
 
             NetSettingSync.sendSync(null);

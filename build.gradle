@@ -13,9 +13,7 @@ buildscript {
         mavenLocal()
     }
     dependencies {
-        classpath ('com.anatawa12.forge:ForgeGradle:1.2-1.1.+') {
-            changing = true
-        }
+        classpath ('com.anatawa12.forge:ForgeGradle:1.2-1.1.+') 
     }
 }
 
@@ -69,7 +67,7 @@ dependencies {
     // for more info...
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
-    implementation 'com.github.GTNewHorizons:NotEnoughItems:2.6.8-GTNH:dev'
+    implementation 'com.github.GTNewHorizons:NotEnoughItems:2.8.73-GTNH:dev'
 }
 
 processResources {

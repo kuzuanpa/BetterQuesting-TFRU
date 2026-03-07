@@ -20,6 +20,7 @@ import betterquesting.commands.admin.QuestCommandLives;
 import betterquesting.commands.admin.QuestCommandPurge;
 import betterquesting.commands.admin.QuestCommandReportAllProgress;
 import betterquesting.commands.admin.QuestCommandReset;
+import betterquesting.core.BetterQuesting;
 import cpw.mods.fml.common.FMLCommonHandler;
 
 public class BQ_CommandAdmin extends CommandBase {
@@ -123,6 +124,12 @@ public class BQ_CommandAdmin extends CommandBase {
                         this,
                         sender,
                         args);
+
+                    // Reset all quest progress here, we receive the full list of completed quests
+                    // every few seconds anyway
+                    if (BetterQuesting.isVmLoaded) {
+                       // VmAdapter.resetCompletedQuests(null);
+                    }
                     return;
                 } else {
                     throw c.getException(this);

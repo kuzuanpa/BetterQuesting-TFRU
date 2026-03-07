@@ -1,5 +1,7 @@
 package betterquesting.api2.client.gui.controls;
 
+import static betterquesting.api.placeholders.ItemPlaceholder.placeholder;
+
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,6 +25,7 @@ import betterquesting.api.properties.NativeProps;
 import betterquesting.api.questing.IQuest;
 import betterquesting.api.questing.tasks.ITask;
 import betterquesting.api.storage.BQ_Settings;
+import betterquesting.api.utils.BigItemStack;
 import betterquesting.api2.client.gui.misc.GuiRectangle;
 import betterquesting.api2.client.gui.misc.IGuiRect;
 import betterquesting.api2.client.gui.resources.colors.IGuiColor;
@@ -35,6 +38,7 @@ import betterquesting.api2.client.gui.themes.presets.PresetTexture;
 import betterquesting.api2.storage.DBEntry;
 import betterquesting.api2.utils.QuestTranslation;
 import betterquesting.client.BookmarkHandler;
+import betterquesting.client.util.GuiTextToggles;
 import betterquesting.questing.QuestDatabase;
 import betterquesting.questing.QuestInstance;
 import betterquesting.storage.QuestSettings;
@@ -98,7 +102,7 @@ public class PanelButtonQuest extends PanelButtonStorage<Map.Entry<UUID, IQuest>
             new OreDictTexture(
                 1F,
                 value.getValue()
-                    .getProperty(NativeProps.ICON),
+                    .getOrDefault(NativeProps.ICON, new BigItemStack(placeholder)),
                 false,
                 true),
             4);
@@ -152,7 +156,7 @@ public class PanelButtonQuest extends PanelButtonStorage<Map.Entry<UUID, IQuest>
     private List<String> getStandardTooltip(IQuest quest, EntityPlayer player, UUID qID) {
         List<String> list = new ArrayList<>();
 
-        list.add(QuestTranslation.translateQuestName(qID, quest));
+        list.add(GuiTextToggles.applyMonochromeIfEnabled(QuestTranslation.translateQuestName(qID, quest)));
 
         UUID playerID = QuestingAPI.getQuestingUUID(player);
 
@@ -200,14 +204,15 @@ public class PanelButtonQuest extends PanelButtonStorage<Map.Entry<UUID, IQuest>
                         .toUpperCase()
                     + ")");
 
-            // TODO: Make this lookup unnecessary
             QuestDatabase.INSTANCE.filterKeys(quest.getRequirements())
                 .entrySet()
                 .stream()
                 .filter(
                     entry -> !entry.getValue()
                         .isComplete(playerID))
-                .forEach(entry -> list.add(EnumChatFormatting.RED + "- " + QuestTranslation.translateQuestName(entry)));
+                .forEach(
+                    entry -> list.add(
+                        "- " + GuiTextToggles.applyMonochromeIfEnabled(QuestTranslation.translateQuestName(entry))));
         } else {
             int n = 0;
 
