@@ -11,6 +11,7 @@ import java.util.UUID;
 
 import javax.annotation.Nullable;
 
+import betterquesting.questing.QuestLineDatabase;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.nbt.NBTTagCompound;
@@ -211,8 +212,14 @@ public class PanelButtonQuest extends PanelButtonStorage<Map.Entry<UUID, IQuest>
                     entry -> !entry.getValue()
                         .isComplete(playerID))
                 .forEach(
-                    entry -> list.add(
-                        "- " + GuiTextToggles.applyMonochromeIfEnabled(QuestTranslation.translateQuestName(entry))));
+                    entry -> {
+                        String dependQuestLineName = QuestLineDatabase.INSTANCE.filterEntries((id,questLine) -> questLine.get(entry.getKey()) != null && ! questLine.containsKey(qID)).entrySet().stream().map(QuestTranslation::translateQuestLineName).findAny().orElse(null);
+                        list.add(
+                                EnumChatFormatting.RED + "- " + (dependQuestLineName != null ?
+                                        EnumChatFormatting.RESET + dependQuestLineName +
+                                        EnumChatFormatting.RED +": " : "")+
+                                        EnumChatFormatting.RESET+ GuiTextToggles.applyMonochromeIfEnabled(QuestTranslation.translateQuestName(entry)));
+                    });
         } else {
             int n = 0;
 
