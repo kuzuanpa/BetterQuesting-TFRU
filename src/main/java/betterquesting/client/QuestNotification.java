@@ -120,7 +120,7 @@ public class QuestNotification {
                 mc.fontRenderer.drawString(unlockedQuest, width - txtW, height - i, color, true);
             }
             i += 10;
-            String title = QuestTranslation.translate("betterquesting.notice.complete");
+            String title = QuestTranslation.translate("betterquesting.notice.unlock");
             int txtW = RenderUtils.getStringWidth(title, mc.fontRenderer);
             mc.fontRenderer.drawString(title, width - txtW, height - i, color, true);
 

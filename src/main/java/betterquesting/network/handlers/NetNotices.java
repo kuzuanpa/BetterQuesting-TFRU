@@ -81,8 +81,6 @@ public class NetNotices {
                                 Optional<Map.Entry<UUID, IQuestLine>> map = QuestLineDatabase.INSTANCE.filterEntries((uid, questLine)-> questLine.containsKey(id)).entrySet().stream().findAny();
                                 if(!map.isPresent())return;// If cannot find questline, player shouldn't access to the new unlocked quest, don't show it.
 
-                                if(map.get().getValue().containsKey(questId))return;//no need to show new unlocked quests at same QuestLine
-
                                 unlockedQuests.add(QuestTranslation.translateQuestLineName(map.get())+": "+QuestTranslation.translateQuestName(id,q));
                             });
                 }
