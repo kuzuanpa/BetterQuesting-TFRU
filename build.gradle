@@ -111,7 +111,9 @@ artifacts {
 publishing {
     publications {
         mavenJava(MavenPublication) {
-        // Add any other artifacts here that you would like to publish!
+            groupId = 'cn.kuzuanpa'
+            artifactId = 'BetterQuesting-TFRU'
+            // Add any other artifacts here that you would like to publish!
             artifact(jar) {
                 builtBy build
             }
@@ -127,5 +129,6 @@ publishing {
     // This block selects the repositories you want to publish to.
     repositories {
         // Add the repositories you want to publish to here.
+        mavenLocal()
     }
 }
