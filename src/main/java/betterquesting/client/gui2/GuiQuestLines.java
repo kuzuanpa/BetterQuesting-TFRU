@@ -3,14 +3,14 @@ package betterquesting.client.gui2;
 import static betterquesting.api.storage.BQ_Settings.alwaysDrawImplicit;
 import static betterquesting.api.storage.BQ_Settings.forceMonochromeText;
 
-import java.awt.Toolkit;
-import java.awt.datatransfer.StringSelection;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import net.minecraft.client.Minecraft;
@@ -42,6 +42,8 @@ import betterquesting.api.utils.RenderUtils;
 import betterquesting.api.utils.UuidConverter;
 import betterquesting.api2.cache.QuestCache;
 import betterquesting.api2.client.gui.GuiScreenCanvas;
+import betterquesting.api2.client.gui.context.IQuestContextMenuEntry;
+import betterquesting.api2.client.gui.context.QuestContextMenuRegistry;
 import betterquesting.api2.client.gui.controls.IPanelButton;
 import betterquesting.api2.client.gui.controls.PanelButton;
 import betterquesting.api2.client.gui.controls.PanelButtonQuest;
@@ -63,7 +65,7 @@ import betterquesting.api2.client.gui.panels.lists.CanvasHoverTray;
 import betterquesting.api2.client.gui.panels.lists.CanvasQuestLine;
 import betterquesting.api2.client.gui.panels.lists.CanvasScrolling;
 import betterquesting.api2.client.gui.popups.PopChoiceExt;
-import betterquesting.api2.client.gui.popups.PopContextMenu;
+import betterquesting.api2.client.gui.popups.PopContextMenuHoverSub;
 import betterquesting.api2.client.gui.resources.colors.GuiColorPulse;
 import betterquesting.api2.client.gui.resources.colors.GuiColorStatic;
 import betterquesting.api2.client.gui.resources.textures.GuiTextureColored;
@@ -113,9 +115,9 @@ public class GuiQuestLines extends GuiScreenCanvas implements IPEventListener, I
     private CanvasQuestLine cvQuest;
 
     // Keep these separate for now
-    private static CanvasHoverTray cvChapterTray;
-    private static CanvasHoverTray cvDescTray;
-    private static CanvasHoverTray cvFrame;
+    private CanvasHoverTray cvChapterTray;
+    private CanvasHoverTray cvDescTray;
+    private CanvasHoverTray cvFrame;
 
     private CanvasScrolling cvDesc;
     private PanelVScrollBar scDesc;
@@ -126,6 +128,7 @@ public class GuiQuestLines extends GuiScreenCanvas implements IPEventListener, I
     private PanelTextBox txTitle;
     private PanelTextBox txDesc;
     private PanelTextBox completionText;
+    private PanelTextBox txGlobalCompletion;
 
     private PanelButton claimAll;
 
@@ -133,6 +136,8 @@ public class GuiQuestLines extends GuiScreenCanvas implements IPEventListener, I
     private static boolean viewMode;
     private int questsCompleted = 0;
     private int totalQuests = 0;
+    private int globalQuestsCompleted = 0;
+    private int globalTotalQuests = 0;
 
     private GuiQuestSearch searchGui;
     private GuiBookmarks bookmarksGui;
@@ -179,11 +184,7 @@ public class GuiQuestLines extends GuiScreenCanvas implements IPEventListener, I
 
         boolean canEdit = QuestingAPI.getAPI(ApiReference.SETTINGS)
             .canUserEdit(mc.thePlayer);
-        boolean preOpen = false;
-        // First time load, if tray locked - let the tray open
-        if (trayLock && cvChapterTray == null && cvDescTray == null) preOpen = true;
-        if (trayLock && cvChapterTray != null && cvChapterTray.isTrayOpen()) preOpen = true;
-        if (trayLock && cvDescTray != null && cvDescTray.isTrayOpen()) preOpen = true;
+        boolean preOpen = trayLock;
 
         PEventBroadcaster.INSTANCE.register(this, PEventButton.class);
 
@@ -229,6 +230,19 @@ public class GuiQuestLines extends GuiScreenCanvas implements IPEventListener, I
             cvBackground.addPanel(btnDesign);
         }
 
+        // Notification settings entry. Tinted yellow as a "needs a look" hint until first opened.
+        int notifY = canEdit ? -88 : -72;
+        PanelButton btnNotif = new PanelButton(new GuiTransform(GuiAlign.BOTTOM_LEFT, 8, notifY, 32, 16, 0), -1, "");
+        if (BQ_Settings.notificationHintSeen) {
+            btnNotif.setIcon(PresetIcon.ICON_NOTICE.getTexture());
+        } else {
+            btnNotif.setIcon(PresetIcon.ICON_NOTICE.getTexture(), new GuiColorStatic(0xFFFFCC00), 0);
+        }
+        btnNotif.setClickAction((b) -> mc.displayGuiScreen(new GuiNotificationSettings(this)));
+        btnNotif
+            .setTooltip(Collections.singletonList(QuestTranslation.translate("betterquesting.notification.settings")));
+        cvBackground.addPanel(btnNotif);
+
         txTitle = new PanelTextBox(
             new GuiTransform(new Vector4f(0F, 0F, 0.5F, 0F), new GuiPadding(60, 12, 0, -24), 0),
             "");
@@ -260,9 +274,9 @@ public class GuiQuestLines extends GuiScreenCanvas implements IPEventListener, I
 
         // === TRAY STATE ===
 
-        boolean chapterTrayOpened = trayLock && cvChapterTray != null && cvChapterTray.isTrayOpen();
+        boolean chapterTrayOpened = false;
         boolean descTrayOpened = trayLock && cvDescTray != null && cvDescTray.isTrayOpen();
-        if (preOpen && !chapterTrayOpened && !descTrayOpened) chapterTrayOpened = true;
+        if (preOpen && !descTrayOpened) chapterTrayOpened = true;
 
         // === CHAPTER TRAY ===
 
@@ -278,9 +292,16 @@ public class GuiQuestLines extends GuiScreenCanvas implements IPEventListener, I
         });
         cvBackground.addPanel(cvChapterTray);
 
-        cvLines = new CanvasScrolling(new GuiTransform(GuiAlign.FULL_BOX, new GuiPadding(8, 8, 16, 8), 0));
+        cvLines = new CanvasScrolling(new GuiTransform(GuiAlign.FULL_BOX, new GuiPadding(8, 20, 16, 8), 0));
         cvChapterTray.getCanvasOpen()
             .addPanel(cvLines);
+
+        txGlobalCompletion = new PanelTextBox(
+            new GuiTransform(new Vector4f(0F, 0F, 1F, 0F), new GuiPadding(8, 8, 16, -20), 0),
+            "");
+        txGlobalCompletion.setColor(PresetColor.TEXT_HEADER.getColor());
+        cvChapterTray.getCanvasOpen()
+            .addPanel(txGlobalCompletion);
 
         scLines = new PanelVScrollBar(new GuiTransform(GuiAlign.RIGHT_EDGE, new GuiPadding(-16, 8, 8, 8), 0));
         cvLines.setScrollDriverY(scLines);
@@ -491,6 +512,38 @@ public class GuiQuestLines extends GuiScreenCanvas implements IPEventListener, I
         cvBackground.addPanel(btnViewMode);
         yOff += 16;
 
+        // Dependency Arrow Button
+        final PanelButton btnDependencyArrows = new PanelButton(
+            new GuiTransform(GuiAlign.TOP_LEFT, 8, yOff, 32, 16, -2),
+            -1,
+            "");
+        final Runnable updateDependencyArrowButton = () -> {
+            btnDependencyArrows.setIcon(
+                PresetIcon.ICON_TWO_WAY.getTexture(),
+                BQ_Settings.showDependencyArrows ? new GuiColorStatic(0xFFFFFFFF) : new GuiColorStatic(0xFF444444),
+                0);
+            btnDependencyArrows.setTooltip(
+                Arrays.asList(
+                    QuestTranslation.translate("betterquesting.btn.show_dependency_arrows"),
+                    QuestTranslation.translate("betterquesting.tooltip.cycle." + BQ_Settings.showDependencyArrows)));
+        };
+        updateDependencyArrowButton.run();
+        btnDependencyArrows.setClickAction((b) -> {
+            BQ_Settings.showDependencyArrows = !BQ_Settings.showDependencyArrows;
+            ConfigHandler.config.get(
+                Configuration.CATEGORY_GENERAL,
+                "Show dependency arrows",
+                false,
+                "If true, quest dependency lines will render directional arrows. This property can be changed by the GUI.")
+                .set(BQ_Settings.showDependencyArrows);
+            ConfigHandler.config.save();
+
+            updateDependencyArrowButton.run();
+            refreshGui();
+        });
+        cvBackground.addPanel(btnDependencyArrows);
+        yOff += 16;
+
         // Quest Color Button
         final PanelButton btnMonoText = new PanelButton(
             new GuiTransform(GuiAlign.TOP_LEFT, 8, yOff, 32, 16, -2),
@@ -540,10 +593,24 @@ public class GuiQuestLines extends GuiScreenCanvas implements IPEventListener, I
                     if (btnQuest != null) {
                         UUID questId = btnQuest.getStoredValue()
                             .getKey();
+                        IQuest theQuest = QuestDatabase.INSTANCE.get(questId);
                         int maxWidth = RenderUtils
                             .getStringWidth(QuestTranslation.translate("betterquesting.btn.share_quest"), fr);
+                        maxWidth = Math.max(
+                            maxWidth,
+                            RenderUtils.getStringWidth(
+                                QuestTranslation.translate("betterquesting.btn.view_dependencies"),
+                                fr));
+                        maxWidth = Math.max(
+                            maxWidth,
+                            RenderUtils
+                                .getStringWidth(QuestTranslation.translate("betterquesting.btn.view_dependants"), fr));
 
-                        PopContextMenu popup = new PopContextMenu(new GuiRectangle(mx, my, maxWidth + 12, 48), true);
+                        int menuItemCount = 5 + QuestContextMenuRegistry.getEntries()
+                            .size(); // bookmark, share, copy, deps, dependants + external
+                        PopContextMenuHoverSub popup = new PopContextMenuHoverSub(
+                            new GuiRectangle(mx, my, maxWidth + 20, menuItemCount * 16),
+                            true);
 
                         Runnable pinQuest = () -> {
                             boolean bookmarked = BookmarkHandler.bookmarkQuest(questId);
@@ -568,25 +635,68 @@ public class GuiQuestLines extends GuiScreenCanvas implements IPEventListener, I
                             .addButton(QuestTranslation.translate("betterquesting.btn.share_quest"), null, questSharer);
 
                         Runnable copyQuestId = () -> {
-                            StringSelection stringToCopy = new StringSelection(UuidConverter.encodeUuid(questId));
-                            try {
-                                Toolkit.getDefaultToolkit()
-                                    .getSystemClipboard()
-                                    .setContents(stringToCopy, null);
-                                mc.thePlayer.addChatMessage(
-                                    new ChatComponentText(
-                                        QuestTranslation.translate("betterquesting.msg.copy_quest_copied")));
-                                mc.thePlayer.addChatMessage(
-                                    new ChatComponentText(
-                                        "  " + EnumChatFormatting.AQUA + UuidConverter.encodeUuid(questId)));
-                            } catch (IllegalStateException e) {
-                                mc.thePlayer.addChatMessage(
-                                    new ChatComponentText(
-                                        QuestTranslation.translate("betterquesting.msg.copy_quest_failed")));
-                            }
+                            String questIdString = UuidConverter.encodeUuid(questId);
+                            GuiScreen.setClipboardString(questIdString);
+                            mc.thePlayer.addChatMessage(
+                                new ChatComponentText(
+                                    QuestTranslation.translate("betterquesting.msg.copy_quest_copied")));
+                            mc.thePlayer
+                                .addChatMessage(new ChatComponentText("  " + EnumChatFormatting.AQUA + questIdString));
                             closePopup();
                         };
                         popup.addButton(QuestTranslation.translate("betterquesting.btn.copy_quest"), null, copyQuestId);
+
+                        // View Dependencies sub-menu
+                        if (theQuest != null) {
+                            UUID playerUUID = QuestingAPI.getQuestingUUID(mc.thePlayer);
+                            List<PopContextMenuHoverSub.SubMenuEntry> depEntries = new ArrayList<>();
+                            for (UUID reqId : theQuest.getRequirements()) {
+                                IQuest reqQuest = QuestDatabase.INSTANCE.get(reqId);
+                                if (reqQuest != null && isQuestInQuestLine(reqId)
+                                    && QuestCache.isQuestShown(reqQuest, playerUUID, mc.thePlayer)) {
+                                    String name = QuestTranslation.translateQuestName(reqId, reqQuest);
+                                    final UUID targetId = reqId;
+                                    depEntries.add(new PopContextMenuHoverSub.SubMenuEntry(name, () -> {
+                                        closePopup();
+                                        navigateToQuest(targetId);
+                                    }));
+                                }
+                            }
+                            popup.addSubMenu(
+                                QuestTranslation.translate("betterquesting.btn.view_dependencies"),
+                                depEntries);
+
+                            // View Dependants sub-menu
+                            List<PopContextMenuHoverSub.SubMenuEntry> dependantEntries = new ArrayList<>();
+                            for (Map.Entry<UUID, IQuest> entry : QuestDatabase.INSTANCE.entrySet()) {
+                                if (entry.getValue() != null && entry.getValue()
+                                    .getRequirements()
+                                    .contains(questId)
+                                    && isQuestInQuestLine(entry.getKey())
+                                    && QuestCache.isQuestShown(entry.getValue(), playerUUID, mc.thePlayer)) {
+                                    String name = QuestTranslation.translateQuestName(entry.getKey(), entry.getValue());
+                                    final UUID targetId = entry.getKey();
+                                    dependantEntries.add(new PopContextMenuHoverSub.SubMenuEntry(name, () -> {
+                                        closePopup();
+                                        navigateToQuest(targetId);
+                                    }));
+                                }
+                            }
+                            popup.addSubMenu(
+                                QuestTranslation.translate("betterquesting.btn.view_dependants"),
+                                dependantEntries);
+                        }
+
+                        // External entries registered by other mods
+                        for (IQuestContextMenuEntry ext : QuestContextMenuRegistry.getEntries()) {
+                            final IQuest capturedQuest = theQuest;
+                            final UUID capturedId = questId;
+                            popup.addButton(ext.getLabel(capturedId, capturedQuest), null, () -> {
+                                ext.getAction(capturedId, capturedQuest)
+                                    .run();
+                                closePopup();
+                            });
+                        }
 
                         openPopup(popup);
                         return true;
@@ -731,7 +841,7 @@ public class GuiQuestLines extends GuiScreenCanvas implements IPEventListener, I
     private void claimAll(List<UUID> claimIdList, boolean forceChoice) {
         if (claimIdList == null || claimIdList.isEmpty()) return;
         if (forceChoice) {
-            NetQuestAction.requestClaimForced(claimIdList);
+            NetQuestAction.requestClaimForceChoice(claimIdList);
         } else {
             NetQuestAction.requestClaim(claimIdList);
         }
@@ -824,11 +934,16 @@ public class GuiQuestLines extends GuiScreenCanvas implements IPEventListener, I
         }
 
         if (cvChapterTray.isTrayOpen()) buildChapterList();
+
+        computeGlobalCompletion();
     }
 
     private boolean isQuestCompletedForQuestline(UUID playerID, IQuest q) {
         if (q.isComplete(playerID)) return true; // Completed quest
-        if (q.getProperty(NativeProps.VISIBILITY) == EnumQuestVisibility.HIDDEN) return true; // Always hidden quest
+        EnumQuestVisibility vis = q.getProperty(NativeProps.VISIBILITY);
+        if (vis == EnumQuestVisibility.HIDDEN) return true; // Always hidden quest
+        if (vis == EnumQuestVisibility.SECRET) return true; // Always secret quest
+        if (!q.getProperty(NativeProps.COUNT_AS_QUEST)) return true; // Excluded from completion count
         if (q.getProperty(NativeProps.LOGIC_QUEST) == EnumLogic.XOR) { // Quest with choice
             int reqCount = 0;
             for (UUID qRequirementId : q.getRequirements()) {
@@ -916,14 +1031,76 @@ public class GuiQuestLines extends GuiScreenCanvas implements IPEventListener, I
                 continue;
             }
 
+            EnumQuestVisibility vis = quest.getProperty(NativeProps.VISIBILITY);
+            if (vis == EnumQuestVisibility.HIDDEN || vis == EnumQuestVisibility.SECRET) {
+                continue;
+            }
+
+            if (!quest.getProperty(NativeProps.COUNT_AS_QUEST)) {
+                continue; // excluded from completion count
+            }
+
             totalQuests++;
 
             if (quest.isComplete(playerUUId) || !quest.isUnlockable(playerUUId)) {
                 questsCompleted++;
             }
         }
-        completionText
-            .setText(QuestTranslation.translate("betterquesting.title.completion", questsCompleted, totalQuests));
+        String completionPercent = totalQuests > 0 ? String.format("%.2f", questsCompleted * 100.0 / totalQuests)
+            : "0.00";
+        completionText.setText(
+            QuestTranslation
+                .translate("betterquesting.title.completion", questsCompleted, totalQuests, completionPercent));
+    }
+
+    private void computeGlobalCompletion() {
+        UUID playerUUId = QuestingAPI.getQuestingUUID(mc.thePlayer);
+
+        globalQuestsCompleted = 0;
+        globalTotalQuests = 0;
+
+        Set<UUID> seen = new HashSet<>();
+
+        for (Tuple2<Map.Entry<UUID, IQuestLine>, Integer> visChapter : visChapters) {
+            IQuestLine line = visChapter.getFirst()
+                .getValue();
+            for (Map.Entry<UUID, IQuestLineEntry> entry : line.entrySet()) {
+                UUID questId = entry.getKey();
+                if (!seen.add(questId)) continue; // already counted in another visible line
+
+                IQuest quest = QuestingAPI.getAPI(ApiReference.QUEST_DB)
+                    .get(questId);
+                if (quest == null) {
+                    continue;
+                }
+
+                EnumQuestVisibility vis = quest.getProperty(NativeProps.VISIBILITY);
+                if (vis == EnumQuestVisibility.HIDDEN || vis == EnumQuestVisibility.SECRET) {
+                    continue;
+                }
+
+                if (!quest.getProperty(NativeProps.COUNT_AS_QUEST)) {
+                    continue; // excluded from completion count
+                }
+
+                globalTotalQuests++;
+                if (quest.isComplete(playerUUId) || !quest.isUnlockable(playerUUId)) {
+                    globalQuestsCompleted++;
+                }
+            }
+        }
+
+        if (txGlobalCompletion != null) {
+            String percent = globalTotalQuests > 0
+                ? String.format("%.2f", globalQuestsCompleted * 100.0 / globalTotalQuests)
+                : "0.00";
+            txGlobalCompletion.setText(
+                QuestTranslation.translate(
+                    "betterquesting.title.completion_total",
+                    globalQuestsCompleted,
+                    globalTotalQuests,
+                    percent));
+        }
     }
 
     private void openQuestLine(Map.Entry<UUID, IQuestLine> q) {
@@ -1026,5 +1203,33 @@ public class GuiQuestLines extends GuiScreenCanvas implements IPEventListener, I
         panelButtonQuest.setTextures(newTexture, newTexture, newTexture);
         cvQuest.setZoom(2f);
         cvQuest.centerOn(panelButtonQuest);
+    }
+
+    public void navigateToQuest(UUID targetQuestId) {
+        for (Map.Entry<UUID, IQuestLine> lineEntry : QuestLineDatabase.INSTANCE.entrySet()) {
+            if (lineEntry.getValue()
+                .containsKey(targetQuestId)) {
+                openQuestLine(lineEntry);
+                Optional<PanelButtonQuest> targetQuestButton = cvQuest.getQuestButtons()
+                    .stream()
+                    .filter(
+                        panelButtonQuest -> panelButtonQuest.getStoredValue()
+                            .getKey()
+                            .equals(targetQuestId))
+                    .findFirst();
+                targetQuestButton.ifPresent(this::highlightButton);
+                return;
+            }
+        }
+    }
+
+    private static boolean isQuestInQuestLine(UUID questId) {
+        for (Map.Entry<UUID, IQuestLine> lineEntry : QuestLineDatabase.INSTANCE.entrySet()) {
+            if (lineEntry.getValue()
+                .containsKey(questId)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
