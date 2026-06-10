@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Stack;
 
-import com.gtnewhorizon.gtnhlib.util.font.FontRendering;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.ScaledResolution;
@@ -687,7 +686,7 @@ public class RenderUtils {
     private static int sizeStringToWidth(String str, int wrapWidth, FontRenderer font) {
         if (BetterQuesting.isGTNHLibLoaded) {
             // GTNHLib replacement that works as it should and supports Angelica's custom fonts
-            return FontRendering.sizeStringToWidth(str, wrapWidth, font);
+            //return FontRendering.sizeStringToWidth(str, wrapWidth, font);
         }
         int i = str.length();
         int j = 0;
@@ -1018,7 +1017,7 @@ public class RenderUtils {
     public static int getStringWidth(String text, FontRenderer font) {
         if (BetterQuesting.isGTNHLibLoaded) {
             // GTNHLib replacement that works as it should and supports Angelica's custom fonts
-            return FontRendering.getStringWidth(text, font);
+            //return FontRendering.getStringWidth(text, font);
         }
 
         if (text == null || text.length() == 0) return 0;

@@ -1,7 +1,7 @@
 BetterQuesting
 ============
 
-A new and improved questing mod for Minecraft pack creators
+A new and improved questing mod for TFRU Modpack. forked from GTNH: https://github.com/GTNewHorizons/BetterQuesting
 
 Standard Expansion
 ============
