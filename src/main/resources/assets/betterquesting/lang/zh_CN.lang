@@ -18,7 +18,8 @@ betterquesting.title.party_invite=邀请玩家
 betterquesting.title.select_theme=选择主题
 betterquesting.title.importers=导入数据
 betterquesting.title.submit_station=提交站
-betterquesting.title.completion=完成度: %d/%d
+betterquesting.title.completion=完成度: %d/%d (%s%%)
+betterquesting.title.completion_total=总计: %d/%d (%s%%)
 
 betterquesting.btn.rewards=任务奖励
 betterquesting.btn.tasks=任务目标
@@ -61,6 +62,8 @@ betterquesting.btn.prereq_visbility.implicit=除悬停或按住Shift时，其余
 betterquesting.btn.prereq_visbility.hidden=始终隐藏
 betterquesting.btn.bookmark_quest=Bookmark
 betterquesting.btn.unbookmark_quest=Unbookmark
+betterquesting.btn.view_dependencies=查看前置
+betterquesting.btn.view_dependants=查看附属
 
 betterquesting.home.exit=退出
 betterquesting.home.quests=任务

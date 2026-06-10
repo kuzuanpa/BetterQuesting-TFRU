@@ -31,6 +31,7 @@ import betterquesting.api2.client.gui.misc.GuiRectangle;
 import betterquesting.api2.client.gui.misc.GuiTransform;
 import betterquesting.api2.client.gui.panels.CanvasEmpty;
 import betterquesting.api2.client.gui.panels.CanvasTextured;
+import betterquesting.api2.client.gui.panels.content.PanelTextBox;
 import betterquesting.api2.client.gui.resources.textures.IGuiTexture;
 import betterquesting.api2.client.gui.resources.textures.SimpleTexture;
 import betterquesting.api2.client.gui.themes.presets.PresetColor;
@@ -42,8 +43,8 @@ import betterquesting.client.gui2.editors.nbt.GuiNbtEditor;
 import betterquesting.client.gui2.party.GuiPartyCreate;
 import betterquesting.client.gui2.party.GuiPartyManage;
 import betterquesting.commands.admin.QuestCommandDefaults;
+import betterquesting.core.BetterQuesting;
 import betterquesting.handlers.ConfigHandler;
-import betterquesting.handlers.EventHandler;
 import betterquesting.handlers.SaveLoadHandler;
 import betterquesting.network.handlers.NetSettingSync;
 import betterquesting.questing.party.PartyManager;
@@ -55,6 +56,8 @@ import cpw.mods.fml.relauncher.SideOnly;
 public class GuiHome extends GuiScreenCanvas implements IPEventListener {
 
     public static GuiScreen bookmark;
+    // one-time per-session discovery callout pointing at the notification settings button
+    private static boolean calloutShownThisSession = false;
 
     public GuiHome(GuiScreen parent) {
         super(parent);
@@ -129,29 +132,25 @@ public class GuiHome extends GuiScreenCanvas implements IPEventListener {
             QuestTranslation.translate("betterquesting.home.theme"));
         inCan.addPanel(btnTheme);
 
+        boolean nudge = !BQ_Settings.notificationHintSeen;
+        String notifLabel = QuestTranslation.translate("betterquesting.notification.settings");
+        if (nudge) notifLabel += " [" + QuestTranslation.translate("betterquesting.notification.new") + "]";
         PanelButton btnNotif = new PanelButton(
             new GuiTransform(GuiAlign.BOTTOM_RIGHT, -140, -52, 136, 16, 0),
             420,
-            (BQ_Settings.questNotices ? QuestTranslation.translate("betterquesting.notification.enabled")
-                : QuestTranslation.translate("betterquesting.notification.disabled"))) {
-
-            @Override
-            public void onButtonClick() {
-                BQ_Settings.questNotices = !BQ_Settings.questNotices;
-                if (betterquesting.handlers.ConfigHandler.config != null) {
-                    betterquesting.handlers.ConfigHandler.config
-                        .get(Configuration.CATEGORY_GENERAL, "Quest Notices", true)
-                        .set(BQ_Settings.questNotices);
-                    betterquesting.handlers.ConfigHandler.config.save();
-                }
-                this.setText(
-                    BQ_Settings.questNotices ? QuestTranslation.translate("betterquesting.notification.enabled")
-                        : QuestTranslation.translate("betterquesting.notification.disabled"));
-            }
-        };
+            notifLabel);
         btnNotif
             .setTooltip(Collections.singletonList(QuestTranslation.translate("betterquesting.notification.tooltip")));
         inCan.addPanel(btnNotif);
+
+        if (nudge && !calloutShownThisSession) {
+            calloutShownThisSession = true;
+            PanelTextBox callout = new PanelTextBox(
+                new GuiTransform(GuiAlign.BOTTOM_RIGHT, -200, -66, 196, 12, 0),
+                QuestTranslation.translate("betterquesting.notification.callout")).setAlignment(2)
+                    .setColor(PresetColor.TEXT_HEADER.getColor());
+            inCan.addPanel(callout);
+        }
 
         if (QuestingAPI.getAPI(ApiReference.SETTINGS)
             .canUserEdit(mc.thePlayer)) {
@@ -223,22 +222,25 @@ public class GuiHome extends GuiScreenCanvas implements IPEventListener {
             final File qFile = new File(BQ_Settings.defaultDir, "DefaultQuests.json");
 
             if (qDir.exists()) {
-                EventHandler.scheduleServerTask(Executors.callable(() -> {
+                BetterQuesting.proxy.scheduleServerTask(Executors.callable(() -> {
                     QuestCommandDefaults.load(null, null, qDir, false);
                     SaveLoadHandler.INSTANCE.resetUpdate();
-                }));
+                }), true);
 
                 // this.initGui(); // Reset the whole thing
                 doClose();
             } else if (qFile.exists()) {
-                EventHandler.scheduleServerTask(Executors.callable(() -> {
+                BetterQuesting.proxy.scheduleServerTask(Executors.callable(() -> {
                     QuestCommandDefaults.loadLegacy(null, null, qDir, false);
                     SaveLoadHandler.INSTANCE.resetUpdate();
-                }));
+                }), true);
 
                 // this.initGui(); // Reset the whole thing
                 doClose();
             }
+        } else if (btn.getButtonID() == 420) // Notification Settings
+        {
+            mc.displayGuiScreen(new GuiNotificationSettings(this));
         } /*
            * else if(btn.getButtonID() == 6) // Test screen
            * {
