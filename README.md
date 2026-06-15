@@ -1,24 +1,13 @@
-BetterQuesting
+ BetterQuesting-TFRU
 ============
 
-A new and improved questing mod for TFRU Modpack. forked from GTNH: https://github.com/GTNewHorizons/BetterQuesting
+Fork of GTNH BetterQuesting for the TFRU pack, original: https://github.com/GTNewHorizons/BetterQuesting.
 
-Standard Expansion
-============
-
-Contains all the basic tasks, rewards, importers and themes for the Better Questing mod
-
-Quest Book
-============
-
-Contains a basic quest book item to give the player something to interact with if there are keybinding conflicts.
-
-# CB-for-BQ
-Command Blocks for Better Questing
-
- - Adds 3 Blocks:
- - Default Load Block to Load Quests after an update.
- - Hardcore Switch Block to activate/deactivate Hardcore Mode.
- - Reset Block to Reset Quests of the Player thats activating it.
- - Blocks can be used in MP but cannot be crafted.
- - works with BQ1 and SHOULD work with BQ2 aswell (untested)
+## Notable local changes
+- Removed the hard dependency on gtnhlib 0.7+.
+- Added notifications for newly unlocked quests and switched quest notifications to localized quest names.
+- Improved quest navigation by showing a dependency quest line when it differs from the current quest line.
+- Replaced the open-inventory achievement to open-quest.
+- Removed vending-machine-related code during local cleanup.
+- When `taskLogic == OR`, ignored task(the Optional Receival) don't cause quests to complete.
+- search widget limits search result counts to 64 to avoid lag.
